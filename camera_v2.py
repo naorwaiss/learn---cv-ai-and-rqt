@@ -3,6 +3,7 @@ import imutils
 import asyncio
 import socket
 import time
+import threading
 
 
 class ObjectTracker:
@@ -14,6 +15,23 @@ class ObjectTracker:
         self.server_ip = server_ip
         self.server_port = server_port
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.send_data = False  # Describe if I send
+        self.receive_thread = threading.Thread(target=self.receive_messages)
+        self.receive_thread.daemon = True
+
+    def receive_messages(self):
+        while True:
+            try:
+                # Adjust the buffer size according to the expected size of messages
+                data, _ = self.client_socket.recvfrom(1024)  # Adjust the buffer size as needed
+                dec_data = data.decode("utf-8")
+                if dec_data.isdigit():
+                    print("Decoded data is a number.")
+                else:
+                    print("Decoded data is not a number.")
+            except socket.error as e:
+                print("Error receiving message:", e)
+                break
 
     async def simple_camera(self):
         while True:
@@ -94,6 +112,7 @@ class ObjectTracker:
 
 async def main():
     tracker = ObjectTracker(source=0)
+    tracker.receive_thread.start()  # Start the receive_messages() function in a separate thread
     await tracker.process_frames()
 
 

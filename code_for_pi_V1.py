@@ -1,4 +1,4 @@
-import base64
+import sys
 import socket
 import threading
 import time
@@ -36,6 +36,7 @@ class Server:
             print("Error sorting data:", e)
 
     def receive_data(self):
+        #at this code i recive data for the server
         while self.running:
             try:
                 data, addr = self.sock.recvfrom(12)  # Adjust buffer size as needed
@@ -66,6 +67,7 @@ class Operation(Server):
         super().__init__()
         self.square = None
         self.square_done = False
+        self .controller = 0 #0 is not activat 1 is activate
 
     def draw_square_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -144,12 +146,37 @@ class Operation(Server):
             print("Error organizing data:", e)
 
 
+def background_thread(operation, server):
+    server_ip = server.server_ip
+    server_port = server.server_port
 
+    print("Background thread started.")
+    while True:
+        user_input = input("Press 'n' to stop the server or 'c' to continue: ")
+        if user_input.lower() == 'n':
+            operation.stop()
+            sys.exit()
+        elif user_input.lower() == 'c':
+            # Send "Hi" to the client
+            send_data_to_client("Hi", (server_ip, server_port))
 
+            # Set controller flag to 1
+            operation.controller = 1
+            time.sleep(3)
 
+            # Reset controller flag to 0
+            operation.controller = 0
+        else:
+            print("Invalid input. Press 'n' to stop the server or 'c' to continue.")
+
+def send_data_to_client(data, client_address):
+    operation.sock.sendto(data.encode("utf-8"), client_address)
+    #at this point need to open 2 computer
 
 if __name__ == "__main__":
     operation = Operation()
     operation.run()
-    input("Press enter to stop the server...")
-    operation.stop()
+    background_thread = threading.Thread(target=background_thread, args=(operation, operation))  # Pass both operation and server instances
+    background_thread.start()
+
+
