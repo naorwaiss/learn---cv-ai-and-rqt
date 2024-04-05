@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 print(torch.__version__)
 print(torchvision.__version__)
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"the sion of the cuda is: {torch.version.cuda} and we use the cuda device: {device}")
+
 # Setup train data
 # Get the basic dataset from PyTorch
 train_data = datasets.FashionMNIST(root="data", train=True, download=True, transform=torchvision.transforms.ToTensor(), target_transform=None)

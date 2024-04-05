@@ -1,4 +1,4 @@
-import sys
+mport sys
 from math import cos, sin, pi
 from typing import Tuple
 import time
