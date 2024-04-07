@@ -2,12 +2,11 @@ import cv2
 import imutils
 import asyncio
 import socket
-import time
 import threading
 
 
 class ObjectTracker:
-    def __init__(self, source=None, server_ip="127.0.0.1", server_port=5005):
+    def __init__(self, source=None, server_ip="192.168.1.193", server_port=5005):
         self.video = cv2.VideoCapture(source)
         self.frame = None
         self.BB = None

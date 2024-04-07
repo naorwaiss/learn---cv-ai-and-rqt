@@ -6,19 +6,16 @@ import numpy as np
 import cv2
 import struct
 
-
-
-
 class Server:
     def __init__(self):
-        self.server_ip = "127.0.0.1"
+        self.server_ip = "192.168.1.193"
         self.server_port = 5005
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((self.server_ip, self.server_port))
         self.running = True
         self.command = 0
         self.size_of_data = 0
-        self.activate_batton= 0 #0 not activate 1 activate
+        self.activate_button = 0  # 0 not activate 1 activate
         self.max_data_send = 15000
 
     def sort_data(self, data):
@@ -31,18 +28,16 @@ class Server:
             self.command = command
             self.size_of_data = data_size
             print(f"Command {command}, Data size {data_size}")
-
-
         except Exception as e:
-            print("Error sorting data:", e) # at the secend time it stack here
+            print("Error sorting data:", e)  # at the second time it stack here
 
     def receive_data(self):
-        #at this code i recive data for the server
+        # at this code I receive data for the server
         while self.running:
             try:
                 data, addr = self.sock.recvfrom(40)  # Adjust buffer size as needed
                 if data:
-                    #print("start Received camman and data size from:", addr)
+                    # print("start Received command and data size from:", addr)
                     self.sort_data(data)  # Sort the received data
                     self.organize_data()  # Process the sorted data
             except socket.timeout:
@@ -59,16 +54,15 @@ class Server:
         self.sock.close()
         print("Server stopped.")
 
-
-
-
 class Operation(Server):
     # This is the main operation that controls all the tasks
     def __init__(self):
         super().__init__()
         self.square = None
         self.square_done = False
-        self .controller = 0 #0 is not activat 1 is activate
+        self.controller = 0  # 0 is not activated, 1 is activated
+        self.square_done = False
+        self.controller = 0  # 0 is not activate 1 is activate
 
     def draw_square_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -79,14 +73,6 @@ class Operation(Server):
         elif event == cv2.EVENT_LBUTTONUP:
             self.square[1] = (x, y)  # Finalize second corner
             self.square_done = True
-
-            # Calculate coordinates and dimensions of the square
-            x1, y1 = self.square[0]
-            x2, y2 = self.square[1]
-            square_x = min(x1, x2)
-            square_y = min(y1, y2)
-            square_w = abs(x2 - x1)
-            square_h = abs(y2 - y1)
 
     def organize_data(self):
         try:
@@ -100,56 +86,63 @@ class Operation(Server):
 
                     # Start loop to get the data
                     num_of_chunks = int(data_size // self.max_data_send) + 1
-                    recive_image = b''  # Initialize as bytes
+                    receive_image = bytearray()  # Initialize as bytes
 
                     for i in range(num_of_chunks):
                         if i == (num_of_chunks - 1):  # Handling the last chunk
                             data_remain = data_size - (self.max_data_send * i)
                             print(f"last_data {data_remain}")
                             received_data, addr = self.sock.recvfrom(data_remain)
-
                         else:
                             received_data, addr = self.sock.recvfrom(self.max_data_send)
 
                         # Append received data to the image data
-                        recive_image += received_data
+                        receive_image.extend(received_data)
 
                         time.sleep(0.1)  # Optionally add a delay to control the rate of data reception
-                    print(f"len of the image is: {len(recive_image)}")
+
+                    print(f"len of the image is: {len(receive_image)}")
                     # Decode received image data
-                    image = cv2.imdecode(np.frombuffer(recive_image, np.uint8), cv2.IMREAD_COLOR)
-                    recive_image = 0
-                    num_of_chunks = 0
-
-
-                    # Display the image
-                    #cv2.imshow('Received Image', image)
+                    nparr = np.frombuffer(receive_image, np.uint8)
+                    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
                     # Check if image decoding was successful
                     if image is not None:
                         print("Decoded image shape:", image.shape)  # Debug print
-                        # Display the image once for drawing the square
-                        cv2.imshow('Image', image)
 
-                        self.square_done = False
-                        cv2.setMouseCallback('Image', self.draw_square_callback)
+                        # Register mouse callback for drawing square
+                        cv2.namedWindow('Received Image')
+                        cv2.setMouseCallback('Received Image', self.draw_square_callback)
 
-                        while not self.square_done:
-                            if self.square is not None:
-                                img_with_square = image.copy()
-                                cv2.rectangle(img_with_square, self.square[0], self.square[1], (0, 255, 0), 2)
-                                cv2.imshow('Image', img_with_square)
-                            cv2.waitKey(1)
-                        print(self.square)
+                        while True:
+                            if self.square_done:
+                                # Create a copy of the image to draw on
+                                image_with_square = image.copy()
 
+                                # Draw the square
+                                cv2.rectangle(image_with_square, self.square[0], self.square[1], (0, 255, 0), 2)
+                                print("Square coordinates:", self.square)  # Print square coordinates
 
-                        cv2.destroyAllWindows()
+                                # Display the image with the square
+                                cv2.imshow('Received Image', image_with_square)
+
+                                # Close the square window after 3 seconds
+                                cv2.waitKey(3000)
+                                cv2.destroyAllWindows()
+                                break
+
+                            else:
+                                # Display the original image without the square
+                                cv2.imshow('Received Image', image)
+
+                            key = cv2.waitKey(1)
+                            if key == 27:  # Esc key to exit
+                                break
+
                     else:
                         print("Failed to decode image.")
 
-                    time.sleep(3)
-                    self.running=True
-
+                    self.running = True
 
                 case 2:
                     # Handle command 2
@@ -187,12 +180,10 @@ def background_thread(operation, server):
 
 def send_data_to_client(data, client_address):
     operation.sock.sendto(data.encode("utf-8"), client_address)
-    #at this point need to open 2 computer
+    # At this point need to open 2 computers
 
 if __name__ == "__main__":
     operation = Operation()
     operation.run()
     background_thread = threading.Thread(target=background_thread, args=(operation, operation))  # Pass both operation and server instances
     background_thread.start()
-
-
