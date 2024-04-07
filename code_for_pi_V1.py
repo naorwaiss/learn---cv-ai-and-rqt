@@ -4,7 +4,7 @@ import threading
 import time
 import numpy as np
 import cv2
-
+import struct
 
 
 
@@ -19,6 +19,7 @@ class Server:
         self.command = 0
         self.size_of_data = 0
         self.activate_batton= 0 #0 not activate 1 activate
+        self.max_data_send = 15000
 
     def sort_data(self, data):
         try:
@@ -29,19 +30,19 @@ class Server:
             data_size = int(sorted_str[2:])
             self.command = command
             self.size_of_data = data_size
+            print(f"Command {command}, Data size {data_size}")
 
-            #print(f"Sorted data: command={command}, size={data_size}")
 
         except Exception as e:
-            print("Error sorting data:", e)
+            print("Error sorting data:", e) # at the secend time it stack here
 
     def receive_data(self):
         #at this code i recive data for the server
         while self.running:
             try:
-                data, addr = self.sock.recvfrom(12)  # Adjust buffer size as needed
+                data, addr = self.sock.recvfrom(40)  # Adjust buffer size as needed
                 if data:
-                    print("start Received camman and data size from:", addr)
+                    #print("start Received camman and data size from:", addr)
                     self.sort_data(data)  # Sort the received data
                     self.organize_data()  # Process the sorted data
             except socket.timeout:
@@ -87,7 +88,6 @@ class Operation(Server):
             square_w = abs(x2 - x1)
             square_h = abs(y2 - y1)
 
-
     def organize_data(self):
         try:
             command = self.command
@@ -97,42 +97,59 @@ class Operation(Server):
                 case 1:
                     self.running = False
                     print(f"Server ready to receive big data at size {data_size}")
-                    picture, addr = self.sock.recvfrom(data_size)
 
-                    # Ensure image data is not empty
-                    if picture:
-                        image_np = np.frombuffer(picture, np.uint8)
-                        # Decode image
-                        image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+                    # Start loop to get the data
+                    num_of_chunks = int(data_size // self.max_data_send) + 1
+                    recive_image = b''  # Initialize as bytes
 
-                        # Check if image decoding was successful
-                        if image is not None:
-                            print("Decoded image shape:", image.shape)  # Debug print
-                            # Display the image
-                            cv2.imshow('Image', image)
+                    for i in range(num_of_chunks):
+                        if i == (num_of_chunks - 1):  # Handling the last chunk
+                            data_remain = data_size - (self.max_data_send * i)
+                            print(f"last_data {data_remain}")
+                            received_data, addr = self.sock.recvfrom(data_remain)
 
-                            self.square_done = False
-                            cv2.setMouseCallback('Image', self.draw_square_callback)
-
-                            while not self.square_done:
-                                if self.square is not None:
-                                    img_with_square = image.copy()
-                                    cv2.rectangle(img_with_square, self.square[0], self.square[1], (0, 255, 0), 2)
-                                    cv2.imshow('Image', img_with_square)
-                                cv2.waitKey(1)
-
-                            print(self.square)
-
-
-                            cv2.destroyAllWindows()
                         else:
-                            print("Failed to decode image.")
+                            received_data, addr = self.sock.recvfrom(self.max_data_send)
+
+                        # Append received data to the image data
+                        recive_image += received_data
+
+                        time.sleep(0.1)  # Optionally add a delay to control the rate of data reception
+                    print(f"len of the image is: {len(recive_image)}")
+                    # Decode received image data
+                    image = cv2.imdecode(np.frombuffer(recive_image, np.uint8), cv2.IMREAD_COLOR)
+                    recive_image = 0
+                    num_of_chunks = 0
+
+
+                    # Display the image
+                    #cv2.imshow('Received Image', image)
+
+                    # Check if image decoding was successful
+                    if image is not None:
+                        print("Decoded image shape:", image.shape)  # Debug print
+                        # Display the image once for drawing the square
+                        cv2.imshow('Image', image)
+
+                        self.square_done = False
+                        cv2.setMouseCallback('Image', self.draw_square_callback)
+
+                        while not self.square_done:
+                            if self.square is not None:
+                                img_with_square = image.copy()
+                                cv2.rectangle(img_with_square, self.square[0], self.square[1], (0, 255, 0), 2)
+                                cv2.imshow('Image', img_with_square)
+                            cv2.waitKey(1)
+                        print(self.square)
+
+
+                        cv2.destroyAllWindows()
                     else:
-                        print("Received empty image data.")
+                        print("Failed to decode image.")
 
                     time.sleep(3)
+                    self.running=True
 
-                    self.running = True
 
                 case 2:
                     # Handle command 2
@@ -144,7 +161,6 @@ class Operation(Server):
                     print("Unknown command:", command)
         except Exception as e:
             print("Error organizing data:", e)
-
 
 def background_thread(operation, server):
     server_ip = server.server_ip

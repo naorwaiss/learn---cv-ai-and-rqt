@@ -15,9 +15,11 @@ class ObjectTracker:
         self.server_ip = server_ip
         self.server_port = server_port
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.max_data_send = 15000
         self.send_data = False  # Describe if I send
         self.receive_thread = threading.Thread(target=self.receive_messages)
         self.receive_thread.daemon = True
+
 
     def receive_messages(self):
         while True:
@@ -54,20 +56,32 @@ class ObjectTracker:
             self.tracker = cv2.TrackerCSRT_create()
             self.tracker.init(self.frame, self.BB)
 
-            # Calculate image size
-            frame_size_bytes = len(self.frame.tobytes())
-
-            print(f"Size of the image: {frame_size_bytes} bytes")
-
-            # Send command and image size
-            command_size_data = f"{1:02}{frame_size_bytes:08}".encode("utf-8")
-            self.client_socket.sendto(command_size_data, (self.server_ip, self.server_port))
-            time.sleep(2)
-
-            # Send image data
+            # Encode the frame
             _, frame_encoded = cv2.imencode('.jpg', self.frame)
             frame_bytes = frame_encoded.tobytes()
-            self.client_socket.sendto(frame_bytes, (self.server_ip, self.server_port))
+
+
+
+
+            # Send command and image size
+            command_size_data = f"{1:02}{len(frame_bytes):38}".encode("utf-8")
+            print("Command:", command_size_data)
+            self.client_socket.sendto(command_size_data, (self.server_ip, self.server_port))
+            await asyncio.sleep(2)
+            print(len(frame_bytes))
+            num_of_chunks = int(len(frame_bytes) // self.max_data_send) + 1
+            print(num_of_chunks)
+
+            # Send image data in chunks
+            for i in range(num_of_chunks):
+                start_idx = i * self.max_data_send
+                end_idx = min((i + 1) * self.max_data_send, len(frame_bytes))
+                print(start_idx, end_idx)
+                chunk_data = frame_bytes[start_idx:end_idx]
+                self.client_socket.sendto(chunk_data, (self.server_ip, self.server_port))
+                await asyncio.sleep(0.01)  # Add a small delay to avoid flooding the network
+
+            print("Image data sent successfully")
 
         self.arm = 0
 
