@@ -3,10 +3,18 @@ import imutils
 import asyncio
 import socket
 import threading
+import pyrealsense2 as rs
+import serial  #read serial from autopilot yoad code
 
+
+#alot of work at this code -
+#1) need to check that the trade not stop and start again after i enter a trhead
+#2) need to conver the camera to the code camera - with pyrealsnese and make the to do what yoad code to
+#3) need to check the qunqe get can work with trhead
+#4) this code need to
 
 class ObjectTracker:
-    def __init__(self, source=None, server_ip="192.168.1.193", server_port=5005):
+    def __init__(self, source=None, server_ip="192.168.1.121", server_port=5005):
         self.video = cv2.VideoCapture(source)
         self.frame = None
         self.BB = None
@@ -19,20 +27,6 @@ class ObjectTracker:
         self.receive_thread = threading.Thread(target=self.receive_messages)
         self.receive_thread.daemon = True
 
-
-    def receive_messages(self):
-        while True:
-            try:
-                # Adjust the buffer size according to the expected size of messages
-                data, _ = self.client_socket.recvfrom(1024)  # Adjust the buffer size as needed
-                dec_data = data.decode("utf-8")
-                if dec_data.isdigit():
-                    print("Decoded data is a number.")
-                else:
-                    print("Decoded data is not a number.")
-            except socket.error as e:
-                print("Error receiving message:", e)
-                break
 
     async def simple_camera(self):
         while True:
@@ -48,6 +42,11 @@ class ObjectTracker:
                 self.frame = frame
                 self.arm = 1
                 break
+    async def get_simple_frame(self):
+        #get simple frame from the user
+        return
+
+
 
     async def select_roi(self):
         if self.arm == 1:
@@ -58,9 +57,6 @@ class ObjectTracker:
             # Encode the frame
             _, frame_encoded = cv2.imencode('.jpg', self.frame)
             frame_bytes = frame_encoded.tobytes()
-
-
-
 
             # Send command and image size
             command_size_data = f"{1:02}{len(frame_bytes):38}".encode("utf-8")
@@ -126,7 +122,69 @@ class ObjectTracker:
 async def main():
     tracker = ObjectTracker(source=0)
     tracker.receive_thread.start()  # Start the receive_messages() function in a separate thread
+    server = server_drone()
+    server.start()  # Start the drone server thread
     await tracker.process_frames()
+
+
+
+
+
+
+
+
+
+
+
+
+
+class server_drone(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.server_ip = "127.0.0.1"  # this is the server of the drone
+        self.server_port = 8008
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind((self.server_ip, self.server_port))
+        self.size_of_data = 0
+        self.activate_button = 0  # 0 not activate 1 activate
+        self.max_data_send = 15000
+        self.runing = False
+
+
+    def sort_data(self, data):
+        """
+        this function will sort the data that the server recive from the cliant
+        it help the script understand where what the command and the size of the data
+        """
+        try:
+            decoded_data = data.decode("utf-8")
+            sorted_data = sorted(decoded_data.split())  # Sort the words in the received string
+            sorted_str = ''.join(sorted_data)  # Join the sorted words without space
+            command = int(sorted_str[0:2])
+            data_size = int(sorted_str[2:])
+            self.command = command
+            self.size_of_data = data_size
+            print(f"Command {command}, Data size {data_size}")
+        except Exception as e:
+            print("Error sorting data:", e)  # at the second time it stack here
+
+        def receive_data(self):
+            # at this code I receive data for the server
+            while self.running:
+                try:
+                    data, addr = self.sock.recvfrom(40)  # Adjust buffer size as needed
+                    if data:
+                        # print("start Received command and data size from:", addr)
+                        self.sort_data(data)  # Sort the received data
+                        self.organize_data()  # Process the sorted data
+                except socket.timeout:
+                    continue
+                except Exception as e:
+                    print("Error receiving data:", e)
+        #need to finish this
+
+    def run(self):
+        print(f"drone server is start")
 
 
 if __name__ == "__main__":

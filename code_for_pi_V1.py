@@ -6,9 +6,13 @@ import numpy as np
 import cv2
 import struct
 
+
+#at this code need to make when press c take photo with roi
+#at press of b - take poto onley
+
 class Server:
     def __init__(self):
-        self.server_ip = "192.168.1.193"
+        self.server_ip = "127.0.0.1"
         self.server_port = 5005
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((self.server_ip, self.server_port))
@@ -17,8 +21,13 @@ class Server:
         self.size_of_data = 0
         self.activate_button = 0  # 0 not activate 1 activate
         self.max_data_send = 15000
+        self.did_have_image = False
 
     def sort_data(self, data):
+        """
+        this function will sort the data that the server recive from the cliant
+        it help the script understand where what the command and the size of the data
+        """
         try:
             decoded_data = data.decode("utf-8")
             sorted_data = sorted(decoded_data.split())  # Sort the words in the received string
@@ -81,6 +90,10 @@ class Operation(Server):
 
             match command:
                 case 1:
+                    """
+                    if command is 01 the server know the image is going to send from the cliant 
+                    it ready to get data at the size of the image and ready to take square from the image
+                    """
                     self.running = False
                     print(f"Server ready to receive big data at size {data_size}")
 
@@ -101,7 +114,8 @@ class Operation(Server):
 
                         time.sleep(0.1)  # Optionally add a delay to control the rate of data reception
 
-                    print(f"len of the image is: {len(receive_image)}")
+                    if len(receive_image) == data_size:
+                        self.did_have_image==True
                     # Decode received image data
                     nparr = np.frombuffer(receive_image, np.uint8)
                     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -129,6 +143,7 @@ class Operation(Server):
                                 # Close the square window after 3 seconds
                                 cv2.waitKey(3000)
                                 cv2.destroyAllWindows()
+                                self.did_have_image=False
                                 break
 
                             else:
@@ -145,7 +160,7 @@ class Operation(Server):
                     self.running = True
 
                 case 2:
-                    # Handle command 2
+                    # Handle command 2 - dont know what to do with this
                     print("Received command 2")
                     # Do something for command 2
 
@@ -155,7 +170,20 @@ class Operation(Server):
         except Exception as e:
             print("Error organizing data:", e)
 
-def background_thread(operation, server):
+
+
+
+
+
+
+
+
+
+
+
+
+
+def background_thread_cliant(operation, server):
     server_ip = server.server_ip
     server_port = server.server_port
 
@@ -166,24 +194,29 @@ def background_thread(operation, server):
             operation.stop()
             sys.exit()
         elif user_input.lower() == 'c':
-            # Send "Hi" to the client
-            send_data_to_client("Hi", (server_ip, server_port))
-
-            # Set controller flag to 1
+            #send command to start take image
+            get_image_command = f"{3:02}{0:38}".encode("utf-8")
+            server.send_command(get_image_command)
             operation.controller = 1
-            time.sleep(3)
 
-            # Reset controller flag to 0
-            operation.controller = 0
+
+            time.sleep(2)
+
+            #send_square =
         else:
             print("Invalid input. Press 'n' to stop the server or 'c' to continue.")
 
 def send_data_to_client(data, client_address):
     operation.sock.sendto(data.encode("utf-8"), client_address)
-    # At this point need to open 2 computers
+
+
+
+
+
+
 
 if __name__ == "__main__":
     operation = Operation()
     operation.run()
-    background_thread = threading.Thread(target=background_thread, args=(operation, operation))  # Pass both operation and server instances
-    background_thread.start()
+    background_thread_cliant = threading.Thread(target=background_thread_cliant, args=(operation, operation))  # Pass both operation and server instances
+    background_thread_cliant.start()
