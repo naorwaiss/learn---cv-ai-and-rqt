@@ -24,8 +24,7 @@ class ObjectTracker:
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.max_data_send = 15000
         self.send_data = False  # Describe if I send
-        self.receive_thread = threading.Thread(target=self.receive_messages)
-        self.receive_thread.daemon = True
+
 
 
     async def simple_camera(self):
@@ -121,7 +120,7 @@ class ObjectTracker:
 
 async def main():
     tracker = ObjectTracker(source=0)
-    tracker.receive_thread.start()  # Start the receive_messages() function in a separate thread
+    #tracker.receive_thread.start()  # Start the receive_messages() function in a separate thread
     server = server_drone()
     server.start()  # Start the drone server thread
     await tracker.process_frames()
@@ -135,7 +134,7 @@ async def main():
 
 
 
-
+#work here about the server
 
 
 class server_drone(threading.Thread):
